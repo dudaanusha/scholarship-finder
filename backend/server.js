@@ -42,7 +42,8 @@ app.get(['/api/health', '/health'], (req, res) => {
     database: {
       status: states[dbState] || 'Unknown',
       connected: dbState === 1,
-      host: mongoose.connection.host || 'in-memory',
+      host: mongoose.connection.host || 'unknown',
+      databaseName: mongoose.connection.name || (mongoose.connection.db ? mongoose.connection.db.databaseName : 'unknown'),
     },
     uptimeSeconds: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
@@ -129,13 +130,13 @@ const PORT = process.env.PORT || 5000;
 // Initialize Database and Start Server
 async function startServer() {
   try {
-    const { isInMemory } = await connectDB();
+    await connectDB();
 
     // Check if database needs seeding
     const Scholarship = require('./models/Scholarship');
     const scholarshipCount = await Scholarship.countDocuments();
 
-    if (isInMemory || scholarshipCount === 0) {
+    if (scholarshipCount === 0) {
       console.log('🔄 Seeding initial dataset...');
       const seedDatabase = require('./seed/seedData');
       await seedDatabase();

@@ -342,56 +342,64 @@ const scholarshipsData = [
 
 async function seedDatabase() {
   try {
-    console.log('🌱 Starting Database Seeding...');
+    console.log('🌱 Checking / Seeding Initial Dataset (Non-Destructive)...');
 
-    // Clear existing data
-    await User.deleteMany({});
-    await StudentProfile.deleteMany({});
-    await Scholarship.deleteMany({});
-    await Application.deleteMany({});
-    await Notification.deleteMany({});
+    // DO NOT clear existing data - preserving all user accounts and applications permanently
 
-    // 1. Create Admin User
-    const adminUser = await User.create({
-      name: 'Platform Administrator',
-      email: 'admin@scholarship.org',
-      password: 'admin123',
-      role: 'admin',
-    });
-    console.log('✅ Admin user created: admin@scholarship.org / admin123');
+    // 1. Ensure Admin User exists
+    let adminUser = await User.findOne({ email: 'admin@scholarship.org' });
+    if (!adminUser) {
+      adminUser = await User.create({
+        name: 'Platform Administrator',
+        email: 'admin@scholarship.org',
+        password: 'admin123',
+        role: 'admin',
+      });
+      console.log('✅ Admin user created: admin@scholarship.org / admin123');
+    } else {
+      console.log('ℹ️ Admin user already exists.');
+    }
 
-    // 2. Create Sample Student User (Aarav Sharma)
-    const studentUser = await User.create({
-      name: 'Aarav Sharma',
-      email: 'student@scholarship.org',
-      password: 'student123',
-      role: 'student',
-    });
-    console.log('✅ Sample student user created: student@scholarship.org / student123');
+    // 2. Ensure Sample Student User exists (Aarav Sharma)
+    let studentUser = await User.findOne({ email: 'student@scholarship.org' });
+    if (!studentUser) {
+      studentUser = await User.create({
+        name: 'Aarav Sharma',
+        email: 'student@scholarship.org',
+        password: 'student123',
+        role: 'student',
+      });
+      console.log('✅ Sample student user created: student@scholarship.org / student123');
+    } else {
+      console.log('ℹ️ Sample student user already exists.');
+    }
 
-    // 3. Create Student Profile for Aarav Sharma
-    const studentProfile = await StudentProfile.create({
-      userId: studentUser._id,
-      fullName: 'Aarav Sharma',
-      email: 'student@scholarship.org',
-      mobileNumber: '9876543210',
-      gender: 'Male',
-      dateOfBirth: new Date('2003-08-15'),
-      state: 'Maharashtra',
-      district: 'Pune',
-      course: 'B.Tech',
-      branch: 'Computer Science and Engineering',
-      yearOfStudy: '3rd Year',
-      collegeName: 'Pune Institute of Computer Technology',
-      cgpa: 8.7,
-      familyIncome: 240000, // ₹2,40,000 / year
-      category: 'OBC',
-      minorityStatus: false,
-      disabilityStatus: false,
-    });
-    console.log('✅ Student Profile created for Aarav Sharma (CGPA: 8.7, Income: 2.4L, OBC, Maharashtra, B.Tech)');
+    // 3. Ensure Student Profile for Aarav Sharma
+    let studentProfile = await StudentProfile.findOne({ userId: studentUser._id });
+    if (!studentProfile) {
+      studentProfile = await StudentProfile.create({
+        userId: studentUser._id,
+        fullName: 'Aarav Sharma',
+        email: 'student@scholarship.org',
+        mobileNumber: '9876543210',
+        gender: 'Male',
+        dateOfBirth: new Date('2003-08-15'),
+        state: 'Maharashtra',
+        district: 'Pune',
+        course: 'B.Tech',
+        branch: 'Computer Science and Engineering',
+        yearOfStudy: '3rd Year',
+        collegeName: 'Pune Institute of Computer Technology',
+        cgpa: 8.7,
+        familyIncome: 240000, // ₹2,40,000 / year
+        category: 'OBC',
+        minorityStatus: false,
+        disabilityStatus: false,
+      });
+      console.log('✅ Student Profile created for Aarav Sharma (CGPA: 8.7, Income: 2.4L, OBC, Maharashtra, B.Tech)');
+    }
 
-    // 4. Create Additional Diverse Student Profiles for Analytics
+    // 4. Ensure Additional Diverse Student Profiles for Analytics
     const additionalStudents = [
       {
         name: 'Priya Patel',
@@ -442,85 +450,98 @@ async function seedDatabase() {
     ];
 
     for (const stud of additionalStudents) {
-      const u = await User.create({
-        name: stud.name,
-        email: stud.email,
-        password: 'password123',
-        role: 'student',
+      let u = await User.findOne({ email: stud.email });
+      if (!u) {
+        u = await User.create({
+          name: stud.name,
+          email: stud.email,
+          password: 'password123',
+          role: 'student',
+        });
+        await StudentProfile.create({
+          userId: u._id,
+          fullName: stud.name,
+          email: stud.email,
+          gender: stud.gender,
+          state: stud.state,
+          course: stud.course,
+          branch: stud.branch,
+          cgpa: stud.cgpa,
+          familyIncome: stud.familyIncome,
+          category: stud.category,
+          minorityStatus: Boolean(stud.minorityStatus),
+          disabilityStatus: Boolean(stud.disabilityStatus),
+        });
+      }
+    }
+
+    // 5. Insert Scholarships if none exist
+    let totalScholarships = await Scholarship.countDocuments();
+    let insertedScholarships = [];
+    if (totalScholarships === 0) {
+      insertedScholarships = await Scholarship.insertMany(scholarshipsData);
+      console.log(`✅ Seeded ${insertedScholarships.length} comprehensive scholarships.`);
+      totalScholarships = insertedScholarships.length;
+    } else {
+      console.log(`ℹ️ Scholarships collection already populated (${totalScholarships} items).`);
+      insertedScholarships = await Scholarship.find().limit(10);
+    }
+
+    // 6. Pre-populate sample applications for Aarav Sharma if none exist
+    const existingApps = await Application.countDocuments({ userId: studentUser._id });
+    if (existingApps === 0 && insertedScholarships.length >= 8) {
+      // Save Reliance Foundation
+      await Application.create({
+        userId: studentUser._id,
+        scholarshipId: insertedScholarships[1]._id, // Reliance Foundation
+        status: 'Saved',
       });
-      await StudentProfile.create({
-        userId: u._id,
-        fullName: stud.name,
-        email: stud.email,
-        gender: stud.gender,
-        state: stud.state,
-        course: stud.course,
-        branch: stud.branch,
-        cgpa: stud.cgpa,
-        familyIncome: stud.familyIncome,
-        category: stud.category,
-        minorityStatus: Boolean(stud.minorityStatus),
-        disabilityStatus: Boolean(stud.disabilityStatus),
+
+      // Apply for Post-Matric OBC
+      const appApplied = await Application.create({
+        userId: studentUser._id,
+        scholarshipId: insertedScholarships[0]._id, // Post-Matric OBC
+        status: 'Applied',
+        appliedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        notes: 'Applied via National Scholarship Portal with income certificate and university bonafide.',
+      });
+
+      // Apply for Maharashtra State Merit (Under Review)
+      await Application.create({
+        userId: studentUser._id,
+        scholarshipId: insertedScholarships[7]._id, // Maharashtra State Merit
+        status: 'Under Review',
+        appliedDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+        notes: 'All university verification stamps completed. Department review in progress.',
+      });
+
+      // 7. Seed Initial Notifications for Aarav Sharma
+      await Notification.create({
+        userId: studentUser._id,
+        scholarshipId: insertedScholarships[1]._id,
+        title: '3 Days Left to Apply',
+        message: `Priority Alert: Only 2-3 days remaining to finalize your application for "${insertedScholarships[1].scholarshipName}".`,
+        type: 'DEADLINE_REMINDER_3D',
+        deadline: insertedScholarships[1].deadline,
+        readStatus: false,
+      });
+
+      await Notification.create({
+        userId: studentUser._id,
+        scholarshipId: insertedScholarships[0]._id,
+        title: 'Application Submitted',
+        message: `Your application for "${insertedScholarships[0].scholarshipName}" has been successfully recorded. Tracking ID: ${appApplied.trackingNumber}`,
+        type: 'APPLICATION_UPDATE',
+        deadline: insertedScholarships[0].deadline,
+        readStatus: true,
       });
     }
-    console.log(`✅ Seeded ${additionalStudents.length} diverse regional student profiles for platform analytics.`);
 
-    // 5. Insert Scholarships
-    const insertedScholarships = await Scholarship.insertMany(scholarshipsData);
-    console.log(`✅ Seeded ${insertedScholarships.length} comprehensive scholarships.`);
-
-    // 6. Pre-populate applications and saved scholarships for Aarav Sharma
-    // Save Reliance Foundation
-    await Application.create({
-      userId: studentUser._id,
-      scholarshipId: insertedScholarships[1]._id, // Reliance Foundation
-      status: 'Saved',
-    });
-
-    // Apply for Post-Matric OBC
-    const appApplied = await Application.create({
-      userId: studentUser._id,
-      scholarshipId: insertedScholarships[0]._id, // Post-Matric OBC
-      status: 'Applied',
-      appliedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-      notes: 'Applied via National Scholarship Portal with income certificate and university bonafide.',
-    });
-
-    // Apply for Maharashtra State Merit (Under Review)
-    await Application.create({
-      userId: studentUser._id,
-      scholarshipId: insertedScholarships[7]._id, // Maharashtra State Merit
-      status: 'Under Review',
-      appliedDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-      notes: 'All university verification stamps completed. Department review in progress.',
-    });
-
-    // 7. Seed Initial Notifications for Aarav Sharma
-    await Notification.create({
-      userId: studentUser._id,
-      scholarshipId: insertedScholarships[1]._id,
-      title: '3 Days Left to Apply',
-      message: `Priority Alert: Only 2-3 days remaining to finalize your application for "${insertedScholarships[1].scholarshipName}".`,
-      type: 'DEADLINE_REMINDER_3D',
-      deadline: insertedScholarships[1].deadline,
-      readStatus: false,
-    });
-
-    await Notification.create({
-      userId: studentUser._id,
-      scholarshipId: insertedScholarships[0]._id,
-      title: 'Application Submitted',
-      message: `Your application for "${insertedScholarships[0].scholarshipName}" has been successfully recorded. Tracking ID: ${appApplied.trackingNumber}`,
-      type: 'APPLICATION_UPDATE',
-      deadline: insertedScholarships[0].deadline,
-      readStatus: true,
-    });
-
-    console.log('🎉 Seeding successfully completed!');
+    console.log('🎉 Seed check successfully completed!');
     return {
       adminUser,
       studentUser,
-      scholarshipsCount: insertedScholarships.length,
+      scholarshipsCount: totalScholarships,
     };
   } catch (error) {
     console.error('❌ Seeding error:', error);
