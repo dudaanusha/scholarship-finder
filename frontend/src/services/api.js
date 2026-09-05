@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: 'http://localhost:5000/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -37,6 +37,8 @@ api.interceptors.response.use(
 export const loginUser = (credentials) => api.post('/auth/login', credentials);
 export const registerUser = (userData) => api.post('/auth/register', userData);
 export const getCurrentUser = () => api.get('/auth/me');
+export const forgotPassword = (data) => api.post('/auth/forgot-password', data);
+export const resetPassword = (token, data) => api.post(`/auth/reset-password/${token}`, data);
 
 // Profile endpoints
 export const getStudentProfile = () => api.get('/profile');

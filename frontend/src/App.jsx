@@ -10,6 +10,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import StudentDashboard from './pages/StudentDashboard';
 import ProfilePage from './pages/ProfilePage';
 import ScholarshipListingPage from './pages/ScholarshipListingPage';
@@ -33,6 +35,9 @@ function App() {
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/scholarships" element={<ScholarshipListingPage />} />
                 <Route path="/scholarships/:id" element={<ScholarshipDetailsPage />} />
 

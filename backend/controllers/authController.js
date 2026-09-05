@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const StudentProfile = require('../models/StudentProfile');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { sendResetEmail } = require('../utils/sendEmail');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'scholarship_ai_secret_key_super_secure_2026', {
@@ -119,6 +121,157 @@ exports.getMe = async (req, res, next) => {
       success: true,
       user,
       profile,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+// @desc    Request password reset
+// @route   POST /api/auth/forgot-password
+// @access  Public
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    const rawEmail = req.body.email;
+
+    if (!rawEmail || typeof rawEmail !== 'string' || !rawEmail.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide your email address',
+      });
+    }
+
+    const cleanEmail = rawEmail.trim();
+    const escapedEmail = cleanEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // Robust user lookup: matches lowercase, exact raw string, trimmed string, or case-insensitive regex
+    const user = await User.findOne({
+      $or: [
+        { email: cleanEmail.toLowerCase() },
+        { email: cleanEmail },
+        { email: rawEmail },
+        { email: { $regex: new RegExp(`^${escapedEmail}$`, 'i') } },
+      ],
+    });
+
+    console.log('Forgot password email query:', cleanEmail);
+    console.log('User found:', user ? user.email : 'NO USER FOUND');
+
+    // Requirement 21: Do not reveal whether an email address exists in the database
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: 'If an account exists with this email, password reset instructions will be sent.',
+      });
+    }
+
+    // Generate cryptographically secure random token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+    // Store hashed token and 15-minute expiration time
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
+
+    await user.save({ validateBeforeSave: false });
+
+    // Construct reset URL for frontend deployment and local development
+    const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const baseClientUrl = clientUrl.replace(/\/+$/, '');
+    const resetUrl = `${baseClientUrl}/reset-password/${resetToken}`;
+
+    console.log(`🔑 Password reset token for ${user.email}: ${resetToken}`);
+    console.log(`🔗 Password reset URL: ${resetUrl}`);
+
+    // Send email using Nodemailer utility
+    try {
+      await sendResetEmail({
+        email: user.email,
+        name: user.name,
+        resetUrl,
+        expiresInMinutes: 15,
+      });
+      console.log(`📧 Reset email sent successfully to ${user.email}`);
+    } catch (emailErr) {
+      console.error(`⚠️ Email sending notice (${emailErr.message}). Reset URL logged to console for testing.`);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'If an account exists with this email, password reset instructions will be sent.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Reset password
+// @route   POST /api/auth/reset-password
+// @route   POST /api/auth/reset-password/:token
+// @route   PUT /api/auth/reset-password/:token
+// @access  Public
+exports.resetPassword = async (req, res, next) => {
+  try {
+    const token = req.params.token || req.body.token;
+    const { password, confirmPassword } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password reset token is missing',
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a new password',
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long',
+      });
+    }
+
+    if (confirmPassword !== undefined && password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match',
+      });
+    }
+
+    // Hash token to compare with database
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user with valid, unexpired token (checks hashed token, and raw token for backwards compatibility)
+    const user = await User.findOne({
+      resetPasswordToken: { $in: [hashedToken, token] },
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired password reset token',
+      });
+    }
+
+    // Set new password (bcrypt pre-save hook on User schema will automatically hash it)
+    user.password = password;
+
+    // Clear reset token and expiration
+    user.resetPasswordToken = null;
+    user.resetPasswordExpire = null;
+
+    await user.save();
+
+    console.log(`✅ Password successfully reset for user: ${user.email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password has been successfully reset. You can now log in with your new password.',
     });
   } catch (error) {
     next(error);
