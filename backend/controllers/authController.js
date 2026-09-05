@@ -2,7 +2,6 @@ const User = require('../models/User');
 const StudentProfile = require('../models/StudentProfile');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { sendResetEmail } = require('../utils/sendEmail');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'scholarship_ai_secret_key_super_secure_2026', {
@@ -179,21 +178,10 @@ exports.forgotPassword = async (req, res, next) => {
     const baseClientUrl = clientUrl.replace(/\/+$/, '');
     const resetUrl = `${baseClientUrl}/reset-password/${resetToken}`;
 
+    console.log(`\n========================================`);
     console.log(`🔑 Password reset token for ${user.email}: ${resetToken}`);
-    console.log(`🔗 Password reset URL: ${resetUrl}`);
-
-    // Send email using Nodemailer utility
-    try {
-      await sendResetEmail({
-        email: user.email,
-        name: user.name,
-        resetUrl,
-        expiresInMinutes: 15,
-      });
-      console.log(`📧 Reset email sent successfully to ${user.email}`);
-    } catch (emailErr) {
-      console.error(`⚠️ Email sending notice (${emailErr.message}). Reset URL logged to console for testing.`);
-    }
+    console.log(`🔗 Password Reset URL: ${resetUrl}`);
+    console.log(`========================================\n`);
 
     res.status(200).json({
       success: true,
